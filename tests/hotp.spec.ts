@@ -6,6 +6,7 @@ const { secret } = await generateSecret({
   name: "App",
   account: "exemple@exemple.com",
   counter: 0,
+  numberOfSecretBytes: 20
 });
 
 const counter = 0;

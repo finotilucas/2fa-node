@@ -10,6 +10,7 @@ import type { Strategy } from "./types.js";
  * @param {string} payload.name - The name of the application or service (displayed in the authenticator app).
  * @param {string} payload.account - The account identifier (e.g., email or username) associated with the user.
  * @param {number} [payload.counter] - The counter value, required only for HOTP. Defaults to `0` if not provided and the type is "HOTP".
+ * @param {number} [payload.numberOfSecretBytes] - Number of authenticator secret bytes default is 20.
  * @param {Strategy} [strategy="TOTP"] - The type of OTP to generate. Defaults to "TOTP" (Time-based OTP). Use "HOTP" for counter-based OTP.
  *
  * @returns {Promise<{ secret: string, uri: string, qr: string }>} - A Promise that resolves to an object containing:
@@ -47,10 +48,11 @@ export async function generateSecret(
   const config = {
     name: encodeURIComponent(payload?.name ?? "App"),
     account: payload.account ? encodeURIComponent(`:${payload.account}`) : "",
-    count: strategy === "HOTP" ? (payload.counter ?? 0).toString() : undefined,
+    counter: strategy === "HOTP" ? (payload.counter ?? 0).toString() : undefined,
+    numberOfBytes: payload.numberOfSecretBytes ?? 20
   } as const;
 
-  const secret = authenticator.generateSecret(20);
+  const secret = authenticator.generateSecret(config.numberOfBytes);
 
   const uri =
     strategy === "TOTP"
@@ -62,8 +64,8 @@ export async function generateSecret(
     name: config.name,
   };
 
-  if (strategy === "HOTP" && config.count) {
-    params.counter = config.count;
+  if (strategy === "HOTP" && config.counter) {
+    params.counter = config.counter;
   }
 
   uri.search = new URLSearchParams(params).toString();
