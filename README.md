@@ -32,6 +32,7 @@ import { generateSecret } from "2fa-node";
 const payload = {
   name: "MyApp", // Application name
   account: "user@example.com", // User account (email or username)
+  numberOfSecretBytes: 20 // OPTIONAL
 };
 
 const secret = await generateSecret(payload);
