@@ -48,8 +48,9 @@ export async function generateSecret(
   const config = {
     name: encodeURIComponent(payload?.name ?? "App"),
     account: payload.account ? encodeURIComponent(`:${payload.account}`) : "",
-    counter: strategy === "HOTP" ? (payload.counter ?? 0).toString() : undefined,
-    numberOfBytes: payload.numberOfSecretBytes ?? 20
+    counter:
+      strategy === "HOTP" ? (payload.counter ?? 0).toString() : undefined,
+    numberOfBytes: payload.numberOfSecretBytes ?? 20,
   } as const;
 
   const secret = authenticator.generateSecret(config.numberOfBytes);
