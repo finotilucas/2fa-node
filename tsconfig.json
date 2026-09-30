@@ -2,14 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "nodenext",
-    "moduleResolution": "NodeNext",
-    "outDir": "./dist",
-    "rootDir": "./lib",
-    "esModuleInterop": true,
     "strict": true,
-    "declaration": true,
-    "sourceMap": true
+    "noEmit": true
   },
-  "include": ["lib/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["lib", "tests", "bin"]
 }

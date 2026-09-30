@@ -1,52 +1,74 @@
-import { authenticator } from "otplib";
+import { generateSync, verifySync } from "otplib";
+import { decodeSecret, guardrails } from "./secret.js";
 
-/**
- * Generates a time-based one-time password (TOTP) token based on the provided secret.
- *
- * @param {string} secret - The secret key used for generating the TOTP token.
- *
- * @returns {Object | null} - An object containing the generated token:
- *   - `token`: The generated TOTP token.
- *   If the secret is invalid or missing, returns `null`.
- *
- * @example
- * const secret = 'JBSWY3DPEHPK3PXP'; // Your pre-generated secret
- * const result = generateToken(secret);
- * console.log(result.token); // The generated token
- */
+const STEP_SECONDS = 30;
+const MAX_WINDOW_STEPS = 98;
+
+/** Returns the current TOTP token, or null if the secret is invalid. */
 export function generateToken(secret: string): { token: string } | null {
-  if (!secret || !secret.length) return null;
+  const key = decodeSecret(secret);
+  if (!key) return null;
 
-  const token = authenticator.generate(secret);
-
-  return { token: token };
+  const token = generateSync({ secret: key, guardrails });
+  return { token };
 }
 
-/**
- * Verifies if a provided TOTP token is valid for the given secret.
- *
- * @param {string} secret - The secret key associated with the TOTP token.
- * @param {string} [token] - The TOTP token to verify.
- * @param {number | [number, number]} [window = 4] - Tokens in the previous and future x-windows that should be considered valid. If integer, same value will be used for both. Alternatively, define array: [past, future]
- *
- * @returns {boolean|null} - Returns `true` if the token is valid, `false` if it's invalid, or `null` if the token is missing.
- *
- * @example
- * const secret = 'JBSWY3DPEHPK3PXP'; // The secret key used for verification
- * const token = '123456'; // The token to verify
- * const isValid = verifyToken(secret, token);
- * console.log(isValid); // true if valid, false if invalid
- */
+/** Checks a TOTP token, also accepting `window` 30-second steps before and after now. */
 export function verifyToken(
   secret: string,
   token?: string,
-  window: number | [number, number] = 4,
-): boolean | null {
-  if (!token || !token.length) return null;
+  window: number | [number, number] = 1,
+): boolean {
+  return verifyTokenOnce(secret, token, null, window) !== null;
+}
 
-  authenticator.options = {
-    window: window,
-  };
+/** Checks a TOTP token newer than `lastTimeStep` and returns the time step it matched, or null. */
+export function verifyTokenOnce(
+  secret: string,
+  token?: string,
+  lastTimeStep?: number | null,
+  window: number | [number, number] = 1,
+): { timeStep: number } | null {
+  const [past, future] = typeof window === "number" ? [window, window] : window;
+  if (
+    !Number.isInteger(past) ||
+    !Number.isInteger(future) ||
+    past < 0 ||
+    future < 0 ||
+    past + future > MAX_WINDOW_STEPS
+  ) {
+    throw new RangeError(
+      `window must be a non-negative integer or [past, future] pair spanning at most ${MAX_WINDOW_STEPS} steps`,
+    );
+  }
 
-  return authenticator.check(token, secret);
+  const afterTimeStep = lastTimeStep ?? undefined;
+  if (
+    afterTimeStep !== undefined &&
+    (!Number.isSafeInteger(afterTimeStep) || afterTimeStep < 0)
+  ) {
+    throw new RangeError("lastTimeStep must be a non-negative safe integer");
+  }
+
+  const key = decodeSecret(secret);
+  if (!key || typeof token !== "string" || !/^\d{6}$/.test(token)) return null;
+
+  const epoch = Math.floor(Date.now() / 1000);
+  const currentStep = Math.floor(epoch / STEP_SECONDS);
+  if (afterTimeStep !== undefined && afterTimeStep >= currentStep + future) {
+    return null;
+  }
+
+  const result = verifySync({
+    strategy: "totp",
+    secret: key,
+    token,
+    epoch,
+    t0: 0,
+    period: STEP_SECONDS,
+    epochTolerance: [past * STEP_SECONDS, future * STEP_SECONDS],
+    afterTimeStep,
+    guardrails,
+  });
+  return result.valid ? { timeStep: currentStep + result.delta } : null;
 }

@@ -1,24 +1,33 @@
 {
   "name": "2fa-node",
-  "version": "0.0.6",
+  "version": "1.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "files": [
     "dist",
     "README.md"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/FinotiLucas/2fa-node"
+    "url": "git+https://github.com/finotilucas/2fa-node.git"
   },
   "scripts": {
-    "build": "rimraf dist && tsc",
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
     "prepare": "npm run build",
     "prepublishOnly": "npm test",
-    "test": "node --loader ts-node/esm --enable-source-maps bin/test.ts",
+    "test": "tsx bin/test.ts",
     "format": "prettier --write .",
-    "lint": "npx eslint ./lib/**",
-    "lint:fix": "npx eslint ./lib/** --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -37,11 +46,10 @@
     "mfa"
   ],
   "author": "Lucas Lima Finoti <lucas.finoti@protonmail.com>",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "description": "Easy 2-Factor Integration For Node.js",
   "devDependencies": {
     "@eslint/js": "^9.18.0",
-    "@japa/assert": "^4.0.1",
     "@japa/expect": "^3.0.3",
     "@japa/expect-type": "^2.0.3",
     "@japa/runner": "^4.1.0",
@@ -51,14 +59,13 @@
     "globals": "^15.14.0",
     "prettier": "^3.4.2",
     "rimraf": "^6.0.1",
-    "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0"
   },
   "type": "module",
   "dependencies": {
-    "otplib": "^12.0.1",
+    "otplib": "^13.5.0",
     "qrcode": "^1.5.4"
   }
 }

@@ -1,170 +1,207 @@
 # 2FA NODE
 
-This library provides a set of utilities to generate and verify time-based one-time passwords (TOTP) and HMAC-based one-time passwords (HOTP), allowing easy integration of two-factor authentication (2FA) in applications. It also supports generating QR codes for easy scanning with authenticator apps like Google Authenticator or Authy.
+This library generates and verifies time-based one-time passwords (TOTP, RFC 6238) and HMAC-based one-time passwords (HOTP, RFC 4226) for two-factor authentication (2FA). It also creates the secret, the `otpauth://` URI and the QR code that authenticator apps such as Google Authenticator or Authy scan.
 
 ## Features
 
-- **Generate Secret for 2FA**: Generates a secret key, a URI, and a QR code that can be used for integrating two-factor authentication with authenticator apps.
-- **Generate TOTP Token**: Generates a time-based one-time password (TOTP) using a secret key.
-- **Verify TOTP Token**: Verifies the validity of a TOTP token.
-- **Generate HOTP Token**: Generates a HMAC-based one-time password (HOTP) using a secret key and a counter.
-- **Verify HOTP Token**: Verifies the validity of a HOTP token using a secret key and a counter.
+- **Generate a 2FA secret**: a random base32 secret, its `otpauth://` URI and a QR code of that URI.
+- **Generate and verify TOTP tokens**: 6-digit codes that change every 30 seconds, optionally accepting each token only once.
+- **Generate and verify HOTP tokens**: 6-digit codes tied to a counter.
 
 ## Installation
-
-To install this library, run the following command:
 
 ```bash
 npm install 2fa-node
 ```
 
+Requires Node.js 20.19 or later.
+
 ## Usage
 
-### Generate 2FA Secret
-
-This function generates a secret key, a URI, and a QR code for 2FA integration. It returns a promise that resolves to an object containing the secret, URI, and the QR code as a data URL.
-
-### Generate TOTP Secret
+### Generate a TOTP secret
 
 ```typescript
 import { generateSecret } from "2fa-node";
 
-const payload = {
-  name: "MyApp", // Application name
-  account: "user@example.com", // User account (email or username)
-  numberOfSecretBytes: 20 // OPTIONAL
-};
+const { secret, uri, qr } = await generateSecret({
+  name: "MyApp", // issuer shown in the authenticator app
+  account: "user@example.com", // account shown in the authenticator app
+});
 
-const secret = await generateSecret(payload);
-
-console.log(secret);
+console.log(secret); // store it for the user
+console.log(uri); // otpauth://totp/MyApp:user%40example.com?secret=...&issuer=MyApp
+console.log(qr); // PNG data URL to show to the user
 ```
 
-### Generate HOTP Secret
+### Generate an HOTP secret
 
 ```typescript
 import { generateSecret } from "2fa-node";
 
-const options = {
-  name: "MyApp", // Application name
-  account: "user@example.com", // User account (email or username)
-  counter: 0, // ONLY WITH HOTP
-};
-
-const secret = await generateSecret(option, "HOTP");
-
-console.log(secret);
+const { secret, uri, qr } = await generateSecret(
+  { name: "MyApp", account: "user@example.com", counter: 0 },
+  "HOTP",
+);
 ```
 
-### Generate TOTP Token
-
-This function generates a time-based one-time password (TOTP) using the provided secret key.
-
-```typescript
-import { generateToken } from "2fa-node";
-
-const secret = "JBSWY3DPEHPK3PXP"; // Your pre-generated secret
-const result = generateToken(secret);
-
-console.log(result.token); // The generated TOTP token
-```
-
-### Verify TOTP Token
-
-This function verifies if a provided TOTP token is valid for the given secret key.
+### Verify a TOTP token
 
 ```typescript
 import { verifyToken } from "2fa-node";
 
-const secret = "JBSWY3DPEHPK3PXP"; // The secret key used for verification
-const token = "123456"; // The token to verify
+const secret = "JBSWY3DPEHPK3PXP"; // the user's stored secret
+const token = "123456"; // the token typed by the user
 
 const isValid = verifyToken(secret, token);
 
-console.log(isValid); // true if valid, false if invalid
+console.log(isValid); // true if valid, false otherwise
 ```
 
-### Generate HOTP Token
-
-This function generates a HMAC-based one-time password (HOTP) token based on the provided secret key and counter value.
+### Accept each TOTP token only once
 
 ```typescript
-import { generateHOTPToken } from "2fa-node";
+import { verifyTokenOnce } from "2fa-node";
 
-const secret = "JBSWY3DPEHPK3PXP"; // Your pre-generated secret
-const counter = 1; // Optional counter (defaults to 0)
+const secret = "JBSWY3DPEHPK3PXP"; // the user's stored secret
+const token = "123456"; // the token typed by the user
+const lastTimeStep = null; // the user's stored time step, null before the first login
 
-const result = generateHOTPToken(secret, counter);
+const match = verifyTokenOnce(secret, token, lastTimeStep);
 
-console.log(result.token); // The generated HOTP token
+if (match) {
+  // Save match.timeStep as the user's lastTimeStep, so this token cannot be used again.
+}
 ```
 
-### Verify HOTP Token
+### Generate a TOTP token
 
-This function verifies if a provided HOTP token is valid for the given secret key and counter value.
+```typescript
+import { generateToken } from "2fa-node";
+
+const secret = "JBSWY3DPEHPK3PXP";
+const result = generateToken(secret);
+
+console.log(result?.token); // the current token, or undefined if the secret is invalid
+```
+
+### Verify an HOTP token
 
 ```typescript
 import { verifyHOTPToken } from "2fa-node";
 
-const secret = "JBSWY3DPEHPK3PXP"; // The secret key used for verification
-const token = "123456"; // The token to verify
-const counter = 1; // The counter associated with the token
+const secret = "JBSWY3DPEHPK3PXP"; // the user's stored secret
+const token = "123456"; // the token typed by the user
+const counter = 1; // the user's stored counter
 
 const isValid = verifyHOTPToken(secret, token, counter);
 
-console.log(isValid); // true if valid, false if invalid
+if (isValid) {
+  // Save counter + 1 so this token cannot be used again.
+}
+```
+
+### Generate an HOTP token
+
+```typescript
+import { generateHOTPToken } from "2fa-node";
+
+const secret = "JBSWY3DPEHPK3PXP";
+const counter = 1;
+
+const result = generateHOTPToken(secret, counter);
+
+console.log(result?.token); // the token, or undefined if the secret is invalid
 ```
 
 ## API Documentation
 
-### `generateSecret(options: Options): Promise<{ secret: string, uri: string, qr: string }>`
+Tokens have 6 digits and use HMAC-SHA1; TOTP tokens change every 30 seconds. Secrets are case-insensitive base32 strings of at least 80 bits (16 characters).
 
-Generates a secret key, URI, and QR code for 2FA integration.
+### `generateSecret(options: SecretOptions, type: OtpType = "TOTP"): Promise<{ secret: string; uri: string; qr: string }>`
+
+Generates a random secret for two-factor authentication.
 
 - **Parameters**:
-  - `options`: An object with the following properties:
-    - `name`: The name of the application or service.
-    - `account`: The account identifier (e.g., email or username).
-- **Returns**: A Promise resolving to an object with:
-  - `secret`: The generated secret key.
-  - `uri`: The otpauth URI.
-  - `qr`: The Data URL for the QR code.
+  - `options.name`: issuer shown in the authenticator app, usually your product name.
+  - `options.account`: account shown in the authenticator app, usually the user's email.
+  - `options.counter` (optional): initial HOTP counter written to the URI. Defaults to `0`; ignored for TOTP.
+  - `options.numberOfSecretBytes` (optional): size of the secret in bytes. Defaults to `20`; must be an integer of at least `16`, because RFC 4226 requires 128-bit secrets.
+  - `type`: `"TOTP"` (default) or `"HOTP"`.
+- **Returns**: a Promise resolving to:
+  - `secret`: the base32 secret to store for the user.
+  - `uri`: the `otpauth://` URI.
+  - `qr`: a PNG data URL of the URI's QR code.
+- **Throws**: `TypeError` for an unknown `type`; `RangeError` for an invalid `numberOfSecretBytes` or HOTP `counter`.
 
 ### `generateToken(secret: string): { token: string } | null`
 
-Generates a TOTP token.
+Generates the current TOTP token.
+
+- **Returns**: `{ token }`, or `null` if the secret is invalid.
+
+### `verifyToken(secret: string, token?: string, window: number | [number, number] = 1): boolean`
+
+Verifies a TOTP token.
 
 - **Parameters**:
-  - `secret`: The secret key used for generating the TOTP token.
-- **Returns**: An object containing the generated token, or `null` if the secret is invalid or missing.
+  - `window`: how many 30-second steps before and after now are also accepted. Use `[past, future]` for different values; `0` accepts only the current step.
+- **Returns**: `true` if the token is valid; `false` otherwise, including when the token is missing or malformed or the secret is invalid.
+- **Throws**: `RangeError` if `window` is not made of non-negative integers or spans more than 98 steps in total.
 
-### `verifyToken(secret: string, token?: string): boolean | null`
+### `verifyTokenOnce(secret: string, token?: string, lastTimeStep?: number | null, window: number | [number, number] = 1): { timeStep: number } | null`
 
-Verifies the validity of a TOTP token.
+Verifies a TOTP token like `verifyToken`, but also rejects tokens from `lastTimeStep` or earlier, so each token is accepted only once.
 
 - **Parameters**:
-  - `secret`: The secret key used for verification.
-  - `token`: The TOTP token to verify.
-- **Returns**: `true` if the token is valid, `false` if it's invalid, or `null` if the token is missing.
+  - `lastTimeStep`: the `timeStep` returned by the user's last successful check, or `null`/`undefined` if there is none.
+  - `window`: same as in `verifyToken`.
+- **Returns**: `{ timeStep }` with the 30-second step the token belongs to, or `null` if the token is rejected. Save `timeStep` for the user after each success.
+- **Throws**: the same errors as `verifyToken`, plus a `RangeError` if `lastTimeStep` is not a non-negative safe integer.
 
 ### `generateHOTPToken(secret: string, counter: number = 0): { token: string } | null`
 
-Generates an HOTP token.
+Generates the HOTP token for a counter.
 
-- **Parameters**:
-  - `secret`: The secret key used for generating the HOTP token.
-  - `counter`: The counter value used to generate the HOTP token (defaults to 0).
-- **Returns**: An object containing the generated token, or `null` if the secret is invalid or missing.
+- **Returns**: `{ token }`, or `null` if the secret is invalid.
+- **Throws**: `RangeError` if `counter` is not a non-negative safe integer.
 
-### `verifyHOTPToken(secret: string, token?: string, counter: number = 0): boolean | null`
+### `verifyHOTPToken(secret: string, token: string | undefined, counter: number): boolean`
 
-Verifies the validity of an HOTP token.
+Verifies an HOTP token against exactly the given counter.
 
-- **Parameters**:
-  - `secret`: The secret key used for verification.
-  - `token`: The HOTP token to verify.
-  - `counter`: The counter value associated with the HOTP token.
-- **Returns**: `true` if the token is valid, `false` if it's invalid, or `null` if the token is missing.
+- **Returns**: `true` if the token is valid; `false` otherwise, including when the token is missing or malformed or the secret is invalid.
+- **Throws**: `RangeError` if `counter` is not a non-negative safe integer.
+
+### Types
+
+`SecretOptions` and `OtpType` (`"TOTP" | "HOTP"`) are exported for TypeScript users.
+
+## Security notes
+
+- `verifyToken` accepts the same token again while it is inside the window. To block replays, use `verifyTokenOnce`, including for the check that confirms enrollment, and save the returned `timeStep` only if it moves forward. Do it in a single statement and treat zero updated rows as a failed login, so two simultaneous requests with the same token cannot both succeed:
+
+  ```sql
+  UPDATE users SET last_time_step = $step
+  WHERE id = $id AND (last_time_step IS NULL OR last_time_step < $step);
+  ```
+
+  For HOTP, advance the counter the same way: `UPDATE users SET counter = counter + 1 WHERE id = $id AND counter = $counter`.
+
+- Limit how many verification attempts a user can make.
+- Keep secrets encrypted at rest.
+
+## Upgrading from 0.x
+
+- HOTP tokens now follow RFC 4226 and match authenticator apps, so they differ from the tokens 0.x produced.
+- `verifyToken` and `verifyHOTPToken` return `false` instead of `null` when the token is missing.
+- `verifyToken` accepts one step (30 seconds) before and after now by default, instead of four.
+- `verifyHOTPToken` requires the counter and no longer takes a `window` argument, which never had any effect.
+- Secrets must be canonical base32 of at least 80 bits. Secrets that 0.x accepted, such as ones with spaces, extra `=` padding or non-zero unused trailing bits, now make the generate functions return `null` and the verify functions return `false`.
+- `numberOfSecretBytes` must be at least `16`. Invalid types, counters and windows throw.
+- The URI carries the standard `issuer` parameter instead of `name`.
+- Only the package entry point can be imported: deep imports such as `2fa-node/dist/secret.js` no longer work.
+- Node.js 20.19 or later is required.
+- The license changed from MIT to MPL-2.0.
 
 ## Dependencies
 
@@ -173,4 +210,4 @@ Verifies the validity of an HOTP token.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Mozilla Public License 2.0 - see the [LICENSE.md](LICENSE.md) file for details.
